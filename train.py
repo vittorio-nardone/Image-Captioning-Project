@@ -36,12 +36,12 @@ def clean_sentence(output, idx2word):
             sentence += ' ' + word 
     return sentence.strip()
 
-def get_avg_bleu_score(outputs, references, idx2word):
+def get_avg_bleu_score(outputs, references, idx2word, weights=(0.25, 0.25, 0.25, 0.25)):
     score = 0
     for i in range(len(outputs)):
         output = clean_sentence(outputs[i], idx2word)
         reference = clean_sentence(references[i], idx2word)
-        score += sentence_bleu([reference], output)
+        score += sentence_bleu([reference], output, weights)
     score /= len(outputs)
     return score
        
@@ -122,7 +122,7 @@ def main(args):
 
     start_time = time()
     
-    epoch_stats = np.zeros((args.num_epochs, 5))
+    epoch_stats = np.zeros((args.num_epochs, 8))
     
     for epoch in range(1, args.num_epochs+1): 
     
@@ -190,7 +190,7 @@ def main(args):
         
         epoch_time = time()
         epoch_loss = 0 
-        epoch_bleu_score = 0
+        epoch_bleu1_score, epoch_bleu2_score, epoch_bleu3_score, epoch_bleu4_score = 0,0,0,0
                 
         for i_step in range(1, total_step_val+1):
            
@@ -218,11 +218,21 @@ def main(args):
         
             # Get predictions
             outputs = decoder.sample(features.unsqueeze(1)) 
-            epoch_bleu_score += get_avg_bleu_score(outputs, captions.tolist(), data_loader_val.dataset.vocab.idx2word)
             
-        
             # Get validation statistics.
-            stats = 'Validation Epoch [%d/%d], Step [%d/%d], Loss: %.4f, Bleu: %5.4f' % (epoch, args.num_epochs, i_step, total_step_val, loss.item(), epoch_bleu_score/i_step)
+            epoch_bleu1_score += get_avg_bleu_score(outputs, captions.tolist(), 
+                                                    data_loader_val.dataset.vocab.idx2word, 
+                                                    weights=(1, 0, 0, 0))
+            epoch_bleu2_score += get_avg_bleu_score(outputs, captions.tolist(), 
+                                                    data_loader_val.dataset.vocab.idx2word, 
+                                                    weights=(0.5, 0.5, 0, 0))
+            epoch_bleu3_score += get_avg_bleu_score(outputs, captions.tolist(), 
+                                                    data_loader_val.dataset.vocab.idx2word, 
+                                                    weights=(0.33, 0.33, 0.33, 0))
+            epoch_bleu4_score += get_avg_bleu_score(outputs, captions.tolist(), 
+                                                    data_loader_val.dataset.vocab.idx2word)                     
+            
+            stats = 'Validation Epoch [%d/%d], Step [%d/%d], Loss: %.4f, BLEU-1/2/3/4: %.4f %.4f %.4f %.4f' % (epoch, args.num_epochs, i_step, total_step_val, loss.item(), epoch_bleu1_score/i_step, epoch_bleu2_score/i_step, epoch_bleu3_score/i_step, epoch_bleu4_score/i_step)
         
             # Print validation statistics (on same line).
             print('\r' + stats, end="")
@@ -244,7 +254,10 @@ def main(args):
 
         epoch_stats[epoch-1,2] = epoch_loss / total_step_val    
         epoch_stats[epoch-1,3] = time() - epoch_time
-        epoch_stats[epoch-1,4] = epoch_bleu_score / total_step_val    
+        epoch_stats[epoch-1,4] = epoch_bleu1_score / total_step_val    
+        epoch_stats[epoch-1,5] = epoch_bleu2_score / total_step_val 
+        epoch_stats[epoch-1,6] = epoch_bleu3_score / total_step_val 
+        epoch_stats[epoch-1,7] = epoch_bleu4_score / total_step_val 
         
         
         # Save the weights.

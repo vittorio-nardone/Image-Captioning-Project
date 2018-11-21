@@ -48,9 +48,6 @@ def get_avg_bleu_score(outputs, references, idx2word, weights=(0.25, 0.25, 0.25,
 
 def main(args):
     
-    if not os.path.exists(args.output_path):
-        os.makedirs(args.output_path)
-
     log_file = os.path.join(args.output_path, 'training_log.txt')       # name of file with saved training loss and perplexity
 
     # Open the training log file.
@@ -84,7 +81,7 @@ def main(args):
                          vocab_from_file=False)
 
     data_loader_val = get_loader_val(transform=transform_val,
-                         batch_size=args.batch_size)
+                         batch_size=256)
     
     
     # The size of the vocabulary.
@@ -207,29 +204,28 @@ def main(args):
             images = images.to(device)
             captions = captions.to(device)
             
-        
             # Pass the inputs through the CNN-RNN model.
             features = encoder(images)
-            outputs = decoder(features, captions)
-        
+    
+            # Get predictions and output from decoder (to calculate LOSS)
+            predictions, outputs = decoder.sample(features, max_len = captions.shape[1], validation = True)
+
             # Calculate the batch loss.
+            outputs = outputs.to(device)
             loss = criterion(outputs.view(-1, vocab_size), captions.view(-1))
             epoch_loss += loss.item()
         
-            # Get predictions
-            outputs = decoder.sample(features.unsqueeze(1)) 
-            
             # Get validation statistics.
-            epoch_bleu1_score += get_avg_bleu_score(outputs, captions.tolist(), 
+            epoch_bleu1_score += get_avg_bleu_score(predictions, captions.tolist(), 
                                                     data_loader_val.dataset.vocab.idx2word, 
                                                     weights=(1, 0, 0, 0))
-            epoch_bleu2_score += get_avg_bleu_score(outputs, captions.tolist(), 
+            epoch_bleu2_score += get_avg_bleu_score(predictions, captions.tolist(), 
                                                     data_loader_val.dataset.vocab.idx2word, 
                                                     weights=(0.5, 0.5, 0, 0))
-            epoch_bleu3_score += get_avg_bleu_score(outputs, captions.tolist(), 
+            epoch_bleu3_score += get_avg_bleu_score(predictions, captions.tolist(), 
                                                     data_loader_val.dataset.vocab.idx2word, 
                                                     weights=(0.33, 0.33, 0.33, 0))
-            epoch_bleu4_score += get_avg_bleu_score(outputs, captions.tolist(), 
+            epoch_bleu4_score += get_avg_bleu_score(predictions, captions.tolist(), 
                                                     data_loader_val.dataset.vocab.idx2word)                     
             
             stats = 'Validation Epoch [%d/%d], Step [%d/%d], Loss: %.4f, BLEU-1/2/3/4: %.4f %.4f %.4f %.4f' % (epoch, args.num_epochs, i_step, total_step_val, loss.item(), epoch_bleu1_score/i_step, epoch_bleu2_score/i_step, epoch_bleu3_score/i_step, epoch_bleu4_score/i_step)
@@ -306,6 +302,11 @@ if __name__ == '__main__':
     if (args.debug == True):
         args.num_epochs = 1
         args.log_step = 10
+    
+    if not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)    
+    with open(os.path.join(args.output_path,'commandline_args.txt'), 'w') as f:
+        f.write('\n'.join(sys.argv[1:]))    
     
     print(args)
     main(args)

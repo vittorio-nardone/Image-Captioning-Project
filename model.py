@@ -64,7 +64,7 @@ class DecoderRNN(nn.Module):
         outputs = self.linear(hiddens)
         return outputs        
 
-    def sample(self, inputs, states=None, max_len=20, validation=False):
+    def sample(self, inputs, states=None, max_len=20):
         """Generate captions for given image(s) features."""
         # Check if single/batch. If single image is submitted, add dummy batch dim.
         if (len(inputs.shape) == 2):   
@@ -73,17 +73,9 @@ class DecoderRNN(nn.Module):
         # Predictions
         sampled_ids = []
         
-        # In case of validation, prepare tensor to store model output.
-        if (validation == True):
-            outputs_val = torch.zeros([inputs.shape[0], max_len, self.vocab_size], dtype=torch.float32)
-        
         for i in range(max_len):
             hiddens, states = self.lstm(inputs, states)          # hiddens: (batch_size, 1, hidden_size)
             outputs = self.linear(hiddens.squeeze(1))            # outputs:  (batch_size, vocab_size)
-            
-            if (validation == True):                             # in case of validation, save model output
-                outputs_val[:,i,:] = outputs                     
-                
             predicted = outputs.argmax(1)                        # predicted: (batch_size)
             sampled_ids.append(predicted)                        
             
@@ -96,14 +88,6 @@ class DecoderRNN(nn.Module):
         # check if single/batch. If single image is submitted, remove dummy batch dim
         if (inputs.shape[0] == 1):                              
             sampled_ids = sampled_ids[0]                        
-            if (validation == True):               
-                 outputs_val = outputs_val[0]
         
-        # in case of validation, return both predictions and outputs
-        if (validation == True):
-            return_val = (sampled_ids, outputs_val)
-        else: # return predictions only
-            return_val = sampled_ids
-        
-        return return_val
+        return sampled_ids
     

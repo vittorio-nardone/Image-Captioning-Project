@@ -208,7 +208,8 @@ def main(args):
             features = encoder(images)
     
             # Get predictions and output from decoder (to calculate LOSS)
-            predictions, outputs = decoder.sample(features, max_len = captions.shape[1], validation = True)
+            outputs = decoder(features, captions)
+            predictions = decoder.sample(features, max_len = captions.shape[1])
 
             # Calculate the batch loss.
             outputs = outputs.to(device)
